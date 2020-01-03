@@ -1,34 +1,46 @@
+use cascade::cascade;
 use gtk::prelude::*;
+use serde::{Deserialize, Serialize};
+use serde_json;
 
-use gtk::{ApplicationWindow, Box, Button, Label, Orientation, WidgetExt};
+use gtk::WidgetExt;
 
 use crate::googleapi;
 
-pub fn open_login_window(app: &gtk::Application) {
-    let window = ApplicationWindow::new(app);
-    window.set_title("Google Task Manager");
-    window.set_default_size(320, 250);
-    window.set_position(gtk::WindowPosition::Center);
-    let title_label = Label::new(Some("Google Task Manager"));
-    let authentication_button = Button::new_with_label("Allow access to Google tasks");
-    let authentication_desc = Label::new(Some("Google Task Manager requires access to your Google Tasks. Any data returned is for the purpose of the apps core functions in providing the user with a way to interact with their Google Tasks."));
-    authentication_desc.set_line_wrap(true);
-    authentication_desc.set_justify(gtk::Justification::Center);
-    WidgetExt::set_widget_name(&title_label, "title_label");
-    WidgetExt::set_widget_name(&authentication_button, "authentication_button");
-    WidgetExt::set_widget_name(&authentication_desc, "authentication_desc");
-    let container = Box::new(Orientation::Vertical, 0);
-    // We need to name it in order to apply CSS on it.
-    WidgetExt::set_widget_name(&container, "login_container");
-    container.add(&title_label);
-    container.add(&authentication_button);
-    container.add(&authentication_desc);
-    window.add(&container);
-    window.show_all();
-    authentication_button.connect_clicked(move |_| {
+#[derive(Serialize, Deserialize, Debug)]
+struct Task {
+    kind: String,
+    etag: String,
+    title: String,
+    updated: String,
+    selfLink: String,
+}
+
+pub fn open_login_window(gtm: &super::main::GTM) {
+    let cloned_auth_window = gtm.auth_window.clone();
+    let cloned_tasks_container = gtm.tasks_container.clone();
+    let cloned_tasks_access_message = gtm.tasks_access_message.clone();
+    &gtm.auth_button.connect_clicked(move |_| {
         let authenticated = googleapi::authentication::authenticate();
         if authenticated {
-            window.close();
+            match googleapi::tasks::get_lists() {
+                Ok(v) => {
+                    let tasks: Vec<Task> = serde_json::from_str(&v).expect("Incorrect task format");
+                    for task in tasks.iter() {
+                        let task_title_button = cascade! {
+                            task_title_button: gtk::Button::new_with_label(&task.title.to_string());
+                            ..set_widget_name("task_title_button");
+                        };
+                        cloned_tasks_container.add(&task_title_button);
+                    }
+                    cloned_tasks_container.show_all();
+                    cloned_tasks_access_message.hide();
+                    cloned_auth_window.close();
+                }
+                Err(_) => println!("No tasks recieved"),
+            }
+        } else {
         }
     });
+    &gtm.auth_window.show_all();
 }

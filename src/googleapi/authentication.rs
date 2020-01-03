@@ -2,7 +2,7 @@ use reqwest;
 use webbrowser;
 
 fn get_auth_url() -> Result<String, reqwest::Error> {
-    let mut res = reqwest::get("http://localhost:4000")?;
+    let mut res = reqwest::get("http://localhost:4000/")?;
     Ok(res.text()?)
 }
 
